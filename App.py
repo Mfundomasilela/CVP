@@ -11,19 +11,21 @@ from pdfminer.high_level import extract_text
 from PIL import Image
 from streamlit_tags import st_tags
 import nltk
-from nltk.corpus import stopwords
 
 # Ensure stopwords are downloaded
 try:
-    nltk.download('stopwords', quiet=True)
-    print("NLTK stopwords data is successfully downloaded.")
-    stop_words = set(stopwords.words('english'))
-    print("Sample stop words:", list(stop_words)[:10])
-except Exception as e:
-    print("An error occurred:", e)
+    nltk.data.find('corpora/stopwords.zip')
+except LookupError:
+    nltk.download('stopwords')
+
+from nltk.corpus import stopwords
+stop_words = set(stopwords.words('english'))
 
 # Define CSV file path
 CSV_FILE_PATH = 'user_data.csv'
+
+# ... rest of the code remains the same ...
+
 
 def save_to_csv(data):
     df = pd.DataFrame(data, columns=['Name', 'Email', 'Resume Score', 'Timestamp', 'Total Page', 
