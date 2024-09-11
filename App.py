@@ -86,8 +86,6 @@ try:
     connection = pymysql.connect(host='localhost', user='root', password='Mfundo@01', db='cv')
 except pymysql.MySQLError as e:
     st.error(f"Error connecting to MySQL Database: {e}")
-connection = pymysql.connect(host='localhost', user='root', password='Mfundo@01', db='cv')
-cursor = connection.cursor()
 
 def insert_data(name, email, res_score, timestamp, no_of_pages, reco_field, cand_level, skills, recommended_skills, courses):
     DB_table_name = 'user_data'
