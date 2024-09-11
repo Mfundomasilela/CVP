@@ -1,50 +1,23 @@
 import streamlit as st
 import pandas as pd
-import base64
-import random
-import time
-import datetime
-import nltk
-import os
-import yt_dlp
-from PIL import Image
-import pymysql
+import base64, random
+import time, io, os
 from pyresparser import ResumeParser
 from pdfminer3.layout import LAParams, LTTextBox
 from pdfminer3.pdfpage import PDFPage
 from pdfminer3.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer3.converter import TextConverter
-import io
+from PIL import Image
 from streamlit_tags import st_tags
-import plotly.express as px
 
-# Download NLTK stopwords
-nltk.download('stopwords')
+# Define CSV file path
+CSV_FILE_PATH = 'user_data.csv'
 
-# Replace pafy with yt-dlp
-def fetch_yt_video(video_url):
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'extract_flat': True,
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(video_url, download=False)
-        return info_dict.get('title', 'No title found')
-
-def fetch_yt_videos(link):
-    info = fetch_yt_video(link)
-    return info
-
-def get_table_download_link(df, filename, text):
-    """Generates a link allowing the data in a given panda dataframe to be downloaded
-    in: dataframe
-    out: href string
-    """
-    csv = df.to_csv(index=False)
-    b64 = base64.b64encode(csv.encode()).decode()  # some strings <-> bytes conversions necessary here
-    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">{text}</a>'
-    return href
+def save_to_csv(data):
+    df = pd.DataFrame(data, columns=['Name', 'Email', 'Resume Score', 'Timestamp', 'Total Page', 
+                                     'Predicted Field', 'User Level', 'Actual Skills', 'Recommended Skills', 
+                                     'Recommended Course'])
+    df.to_csv(CSV_FILE_PATH, mode='a', header=not os.path.exists(CSV_FILE_PATH), index=False)
 
 def pdf_reader(file):
     resource_manager = PDFResourceManager()
@@ -55,8 +28,6 @@ def pdf_reader(file):
         for page in PDFPage.get_pages(fh, caching=True, check_extractable=True):
             page_interpreter.process_page(page)
         text = fake_file_handle.getvalue()
-
-    # close open handles
     converter.close()
     fake_file_handle.close()
     return text
@@ -81,23 +52,36 @@ def course_recommender(course_list):
             break
     return rec_course
 
-# CONNECT TO DATABASE
-try:
-    connection = pymysql.connect(host='localhost', user='root', password='Mfundo@01', db='cv')
-except pymysql.MySQLError as e:
-    st.error(f"Error connecting to MySQL Database: {e}")
+# Course lists
+ds_course = [
+    ('TensorFlow Certification', 'https://www.coursera.org/learn/intro-to-tensorflow'),
+    ('Data Science Specialization', 'https://www.coursera.org/specializations/jhu-data-science'),
+    # Add more courses here
+]
 
-def insert_data(name, email, res_score, timestamp, no_of_pages, reco_field, cand_level, skills, recommended_skills, courses):
-    DB_table_name = 'user_data'
-    insert_sql = f"INSERT INTO {DB_table_name} VALUES (0, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-    rec_values = (name, email, str(res_score), timestamp, str(no_of_pages), reco_field, cand_level, skills, recommended_skills, courses)
-    cursor.execute(insert_sql, rec_values)
-    connection.commit()
+web_course = [
+    ('Full Stack Web Development', 'https://www.udemy.com/course/the-web-developer-bootcamp/'),
+    ('JavaScript Web Development', 'https://www.codecademy.com/learn/introduction-to-javascript'),
+    # Add more courses here
+]
 
-st.set_page_config(
-    page_title="Talent Acquisition Assistant!",
-    page_icon='./Logo/pexels-vojtech-okenka-127162-392018.jpg',
-)
+android_course = [
+    ('Android Development for Beginners', 'https://www.udemy.com/course/complete-android-n-developer-course/'),
+    ('Flutter & Dart - The Complete Guide', 'https://www.udemy.com/course/flutter-dart-the-complete-guide/'),
+    # Add more courses here
+]
+
+ios_course = [
+    ('iOS 16 Programming for Beginners', 'https://www.udemy.com/course/ios-16-development/'),
+    ('SwiftUI Masterclass', 'https://www.udemy.com/course/swiftui-masterclass-course/'),
+    # Add more courses here
+]
+
+uiux_course = [
+    ('UI/UX Design Specialization', 'https://www.coursera.org/specializations/ui-ux-design'),
+    ('UX & Web Design Master Course', 'https://www.udemy.com/course/ux-web-design-master-course/'),
+    # Add more courses here
+]
 
 def run():
     img = Image.open('./Logo/pexels-vojtech-okenka-127162-392018.jpg')
@@ -109,30 +93,6 @@ def run():
     link = '[©Developed by Mfundo](https://www.linkedin.com/in/nomfundo-masilela-638bb3218?lipi=urn%3Ali%3Apage%3Ad_flagship3_profile_view_base_contact_details%3BlJMn04CbRdaLQlphkDs5Nw%3D%3D)'
     st.sidebar.markdown(link, unsafe_allow_html=True)
 
-    # Create the DB
-    db_sql = "CREATE DATABASE IF NOT EXISTS CV;"
-    cursor.execute(db_sql)
-
-    # Create table
-    DB_table_name = 'user_data'
-    table_sql = f"""
-    CREATE TABLE IF NOT EXISTS {DB_table_name} (
-        ID INT NOT NULL AUTO_INCREMENT,
-        Name VARCHAR(500) NOT NULL,
-        Email_ID VARCHAR(500) NOT NULL,
-        resume_score VARCHAR(8) NOT NULL,
-        Timestamp VARCHAR(50) NOT NULL,
-        Page_no VARCHAR(5) NOT NULL,
-        Predicted_Field BLOB NOT NULL,
-        User_level BLOB NOT NULL,
-        Actual_skills BLOB NOT NULL,
-        Recommended_skills BLOB NOT NULL,
-        Recommended_courses BLOB NOT NULL,
-        PRIMARY KEY (ID)
-    );
-    """
-    cursor.execute(table_sql)
-
     if choice == 'User':
         st.markdown('''<h5 style='text-align: left; color: #021659;'> Upload your resume, and get smart recommendations</h5>''',
                     unsafe_allow_html=True)
@@ -140,7 +100,7 @@ def run():
         if pdf_file is not None:
             with st.spinner('Uploading your Resume...'):
                 time.sleep(4)
-            save_image_path = './Uploaded_Resumes/' + pdf_file.name
+            save_image_path = './Uploaded_Resumes/'+pdf_file.name
             with open(save_image_path, "wb") as f:
                 f.write(pdf_file.getbuffer())
             show_pdf(save_image_path)
@@ -149,126 +109,104 @@ def run():
                 resume_text = pdf_reader(save_image_path)
 
                 st.header("**Resume Analysis**")
-                st.success("Hello " + resume_data['name'])
+                st.success("Hello "+ resume_data['name'])
                 st.subheader("**Your Basic info**")
                 try:
-                    st.text('Name: ' + resume_data['name'])
+                    st.text('Name: '+resume_data['name'])
                     st.text('Email: ' + resume_data['email'])
                     st.text('Contact: ' + resume_data['mobile_number'])
-                    st.text('Resume pages: ' + str(resume_data['no_of_pages']))
+                    st.text('Resume pages: '+str(resume_data['no_of_pages']))
                 except:
                     pass
-
+                
                 cand_level = ''
                 if resume_data['no_of_pages'] == 1:
                     cand_level = "Fresher"
-                    st.markdown('''<h4 style='text-align: left; color: #d73b5c;'>You are at Fresher level!</h4>''', unsafe_allow_html=True)
+                    st.markdown( '''<h4 style='text-align: left; color: #d73b5c;'>You are at Fresher level!</h4>''',unsafe_allow_html=True)
                 elif resume_data['no_of_pages'] == 2:
                     cand_level = "Intermediate"
-                    st.markdown('''<h4 style='text-align: left; color: #1ed760;'>You are at intermediate level!</h4>''', unsafe_allow_html=True)
+                    st.markdown('''<h4 style='text-align: left; color: #1ed760;'>You are at intermediate level!</h4>''',unsafe_allow_html=True)
                 elif resume_data['no_of_pages'] >= 3:
                     cand_level = "Experienced"
-                    st.markdown('''<h4 style='text-align: left; color: #fba171;'>You are at experience level!</h4>''', unsafe_allow_html=True)
+                    st.markdown('''<h4 style='text-align: left; color: #fba171;'>You are at experience level!''',unsafe_allow_html=True)
 
-                # Skills recommendation
                 keywords = st_tags(label='### Your Current Skills',
-                                   text='See our skills recommendation below',
-                                   value=resume_data['skills'], key='1')
+                text='See our skills recommendation below',
+                    value=resume_data['skills'], key='1')
 
-                # Keywords for various fields
                 ds_keyword = ['tensorflow', 'keras', 'pytorch', 'machine learning', 'deep Learning', 'flask', 'streamlit']
-                web_keyword = ['react', 'django', 'node js', 'react js', 'php', 'laravel', 'magento', 'wordpress',
-                               'javascript', 'angular js', 'c#', 'flask']
+                web_keyword = ['react', 'django', 'node js', 'react js', 'php', 'laravel', 'magento', 'wordpress', 'javascript', 'angular js', 'c#', 'flask']
                 android_keyword = ['android', 'android development', 'flutter', 'kotlin', 'xml', 'kivy']
                 ios_keyword = ['ios', 'ios development', 'swift', 'cocoa', 'cocoa touch', 'xcode']
-                uiux_keyword = ['ux', 'adobe xd', 'figma', 'zeplin', 'balsamiq', 'ui', 'prototyping', 'wireframes',
-                                'storyframes', 'adobe photoshop', 'photoshop', 'editing', 'adobe illustrator', 'illustrator',
-                                'adobe after effects', 'after effects', 'adobe premier pro', 'premier pro', 'adobe indesign',
-                                'indesign', 'wireframe', 'solid', 'grasp', 'user research', 'user experience']
+                uiux_keyword = ['ux', 'adobe xd', 'figma', 'zeplin', 'balsamiq', 'ui', 'prototyping', 'wireframes', 'storyframes', 'adobe photoshop', 'photoshop', 'editing', 'adobe illustrator', 'illustrator', 'adobe after effects', 'after effects', 'adobe premier pro', 'premier pro', 'adobe indesign', 'indesign', 'wireframe', 'solid', 'grasp', 'user research', 'user experience']
 
                 recommended_skills = []
                 reco_field = ''
                 rec_course = ''
-
-                # Courses recommendation
                 for i in resume_data['skills']:
                     if i.lower() in ds_keyword:
                         reco_field = 'Data Science'
-                        rec_course = [("Deep Learning Specialization", "https://www.coursera.org/specializations/deep-learning"),
-                                      ("Machine Learning by Andrew Ng", "https://www.coursera.org/learn/machine-learning"),
-                                      ("Python for Data Science and Machine Learning Bootcamp", "https://www.udemy.com/course/python-for-data-science-and-machine-learning-bootcamp/"),
-                                      ("Data Science MicroMasters", "https://www.edx.org/micromasters/uc-san-diego-data-science"),
-                                      ("Data Analyst Nanodegree", "https://www.udacity.com/course/data-analyst-nanodegree--nd002")]
+                        st.success("** Our analysis says you are looking for Data Science Jobs.**")
+                        recommended_skills = ['Data Visualization', 'Predictive Analysis', 'Statistical Modeling', 'Data Mining', 'Clustering & Classification', 'Data Analytics', 'Quantitative Analysis', 'Web Scraping', 'ML Algorithms', 'Keras', 'Pytorch', 'Probability', 'Scikit-learn', 'Tensorflow', "Flask", 'Streamlit']
+                        recommended_keywords = st_tags(label='### Recommended skills for you.',
+                        text='Recommended skills generated from System', value=recommended_skills, key='2')
+                        st.markdown('''<h4 style='text-align: left; color: #1ed760;'>Adding these skills to your resume will boost🚀 the chances of getting a Job</h4>''',unsafe_allow_html=True)
+                        rec_course = course_recommender(ds_course)
                         break
+
                     elif i.lower() in web_keyword:
                         reco_field = 'Web Development'
-                        rec_course = [("The Complete Web Developer Bootcamp", "https://www.udemy.com/course/the-complete-web-developer-bootcamp/"),
-                                      ("The Web Developer Bootcamp 2024", "https://www.udemy.com/course/the-web-developer-bootcamp/"),
-                                      ("Front-End Web Developer Nanodegree", "https://www.udacity.com/course/front-end-web-developer-nanodegree--nd0011"),
-                                      ("Full Stack Web Developer Nanodegree", "https://www.udacity.com/course/full-stack-web-developer-nanodegree--nd0044"),
-                                      ("JavaScript Algorithms and Data Structures", "https://www.freecodecamp.org/learn/javascript-algorithms-and-data-structures/")]
+                        st.success("** Our analysis says you are looking for Web Development Jobs **")
+                        recommended_skills = ['React', 'Django', 'Node JS', 'React JS', 'PHP', 'Laravel', 'Magento', 'WordPress', 'JavaScript', 'Angular JS', 'C#', 'Flask', 'SDK']
+                        recommended_keywords = st_tags(label='### Recommended skills for you.',
+                        text='Recommended skills generated from System', value=recommended_skills, key='3')
+                        st.markdown('''<h4 style='text-align: left; color: #1ed760;'>Adding these skills to your resume will boost🚀 the chances of getting a Job💼</h4>''',unsafe_allow_html=True)
+                        rec_course = course_recommender(web_course)
                         break
+
                     elif i.lower() in android_keyword:
                         reco_field = 'Android Development'
-                        rec_course = [("Android App Development for Beginners", "https://www.udemy.com/course/android-app-development-for-beginners/"),
-                                      ("Master Android App Development with Kotlin", "https://www.udemy.com/course/master-android-app-development-with-kotlin/"),
-                                      ("The Complete Android App Developer Bootcamp", "https://www.udemy.com/course/the-complete-android-app-developer-bootcamp/"),
-                                      ("Advanced Android App Development", "https://www.udacity.com/course/advanced-android-app-development--ud855"),
-                                      ("Android Development with Java", "https://www.coursera.org/learn/android-app-development")]
+                        st.success("** Our analysis says you are looking for Android App Development Jobs **")
+                        recommended_skills = ['Android', 'Android development', 'Flutter', 'Kotlin', 'XML', 'Java', 'Kivy']
+                        recommended_keywords = st_tags(label='### Recommended skills for you.',
+                        text='Recommended skills generated from System', value=recommended_skills, key='4')
+                        st.markdown('''<h4 style='text-align: left; color: #1ed760;'>Adding these skills to your resume will boost🚀 the chances of getting a Job</h4>''',unsafe_allow_html=True)
+                        rec_course = course_recommender(android_course)
                         break
+
                     elif i.lower() in ios_keyword:
                         reco_field = 'iOS Development'
-                        rec_course = [("iOS 16 Programming for Beginners", "https://www.udemy.com/course/ios-16-programming-for-beginners/"),
-                                      ("The Complete iOS App Development Bootcamp", "https://www.udemy.com/course/the-complete-ios-app-development-bootcamp/"),
-                                      ("iOS Development with Swift", "https://www.coursera.org/learn/ios-development-swift"),
-                                      ("Mastering iOS Development", "https://www.udacity.com/course/mastering-ios-development--ud879"),
-                                      ("iOS App Development Fundamentals", "https://www.pluralsight.com/courses/ios-app-development-fundamentals")]
+                        st.success("** Our analysis says you are looking for iOS Development Jobs **")
+                        recommended_skills = ['iOS', 'iOS development', 'Swift', 'Cocoa', 'Cocoa Touch', 'Xcode']
+                        recommended_keywords = st_tags(label='### Recommended skills for you.',
+                        text='Recommended skills generated from System', value=recommended_skills, key='5')
+                        st.markdown('''<h4 style='text-align: left; color: #1ed760;'>Adding these skills to your resume will boost🚀 the chances of getting a Job</h4>''',unsafe_allow_html=True)
+                        rec_course = course_recommender(ios_course)
                         break
+
                     elif i.lower() in uiux_keyword:
                         reco_field = 'UI/UX Design'
-                        rec_course = [("The UI/UX Design Specialization", "https://www.coursera.org/specializations/ui-ux-design"),
-                                      ("User Experience Design Fundamentals", "https://www.udemy.com/course/user-experience-design-fundamentals/"),
-                                      ("UX & Web Design Master Course", "https://www.udemy.com/course/ux-web-design-master-course/"),
-                                      ("UI/UX Design Nanodegree", "https://www.udacity.com/course/ui-ux-designer-nanodegree--nd578"),
-                                      ("Mastering UI Design", "https://www.pluralsight.com/courses/mastering-ui-design")]
-                        break
-                    else:
-                        reco_field = 'General'
-                        rec_course = [("The Complete Web Developer Bootcamp", "https://www.udemy.com/course/the-complete-web-developer-bootcamp/"),
-                                      ("The Complete Data Science Bootcamp", "https://www.udemy.com/course/the-complete-data-science-bootcamp/"),
-                                      ("The Complete Android App Developer Bootcamp", "https://www.udemy.com/course/the-complete-android-app-developer-bootcamp/"),
-                                      ("The Complete iOS App Development Bootcamp", "https://www.udemy.com/course/the-complete-ios-app-development-bootcamp/"),
-                                      ("The Complete UI/UX Design Bootcamp", "https://www.udemy.com/course/the-complete-uiux-design-bootcamp/")]
+                        st.success("** Our analysis says you are looking for UI/UX Design Jobs **")
+                        recommended_skills = ['UX', 'Adobe XD', 'Figma', 'Zeplin', 'Balsamiq', 'UI', 'Prototyping', 'Wireframes', 'Storyframes', 'Adobe Photoshop', 'Photoshop', 'Editing', 'Adobe Illustrator', 'Illustrator', 'Adobe After Effects', 'After Effects', 'Adobe Premier Pro', 'Premier Pro', 'Adobe InDesign', 'InDesign', 'Wireframe', 'Solid', 'Grasp', 'User Research', 'User Experience']
+                        recommended_keywords = st_tags(label='### Recommended skills for you.',
+                        text='Recommended skills generated from System', value=recommended_skills, key='6')
+                        st.markdown('''<h4 style='text-align: left; color: #1ed760;'>Adding these skills to your resume will boost🚀 the chances of getting a Job</h4>''',unsafe_allow_html=True)
+                        rec_course = course_recommender(uiux_course)
                         break
 
-                st.subheader("**Skill Recommendations 🛠️**")
-                st.write(f"Based on your skills, we recommend exploring the following area: **{reco_field}**")
+                # Save data to CSV
+                save_to_csv([[
+                    resume_data.get('name', 'N/A'),
+                    resume_data.get('email', 'N/A'),
+                    resume_data.get('resume_score', 'N/A'),
+                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    resume_data.get('no_of_pages', 'N/A'),
+                    reco_field,
+                    cand_level,
+                    ', '.join(resume_data.get('skills', [])),
+                    ', '.join(recommended_skills),
+                    ', '.join(rec_course)
+                ]])
 
-                # Recommend courses
-                rec_courses = course_recommender(rec_course)
-
-                st.subheader("**Recommended Courses 📚**")
-                st.write("Explore these courses to enhance your skills:")
-                for course in rec_courses:
-                    st.write(course)
-
-                # Insert data into database
-                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                insert_data(resume_data['name'], resume_data['email'], resume_data.get('score', 'N/A'),
-                            timestamp, resume_data['no_of_pages'], reco_field, cand_level, 
-                            ', '.join(resume_data.get('skills', [])), ', '.join(recommended_skills), ', '.join(rec_courses))
-
-    elif choice == 'Admin':
-        st.subheader("**Admin Dashboard**")
-        st.write("View and manage the data from user uploads.")
-
-        query = "SELECT * FROM user_data;"
-        cursor.execute(query)
-        result = cursor.fetchall()
-        df = pd.DataFrame(result, columns=['ID', 'Name', 'Email_ID', 'resume_score', 'Timestamp', 'Page_no',
-                                           'Predicted_Field', 'User_level', 'Actual_skills', 'Recommended_skills', 
-                                           'Recommended_courses'])
-        st.write(df)
-        st.markdown(get_table_download_link(df, 'user_data.csv', 'Download CSV'), unsafe_allow_html=True)
-
-run()
+if __name__ == "__main__":
+    run()
