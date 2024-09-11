@@ -85,7 +85,7 @@ uiux_course = [
 ]
 
 def run():
-    img = Image.open('./Logo/pexels-vojtech-okenka-127162-392018.jpg')
+    img = Image.open('pexels-vojtech-okenka-127162-392018.jpg')
     st.image(img)
     st.title("Talent Acquisition Assistant!")
     st.sidebar.markdown("# Please select an Option")
