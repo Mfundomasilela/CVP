@@ -11,16 +11,20 @@ from pdfminer.high_level import extract_text
 from PIL import Image
 from streamlit_tags import st_tags
 import nltk
+# Set the NLTK data path
+nltk_data_path = os.path.join(os.path.expanduser('~'), 'nltk_data')
+if not os.path.exists(nltk_data_path):
+    os.makedirs(nltk_data_path)
+nltk.data.path.append(nltk_data_path)
 
 # Ensure stopwords are downloaded
 try:
     nltk.data.find('corpora/stopwords.zip')
 except LookupError:
-    nltk.download('stopwords')
+    nltk.download('stopwords', download_dir=nltk_data_path)
 
 from nltk.corpus import stopwords
 stop_words = set(stopwords.words('english'))
-
 # Define CSV file path
 CSV_FILE_PATH = 'user_data.csv'
 
